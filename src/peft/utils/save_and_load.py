@@ -70,15 +70,21 @@ def get_peft_model_state_dict(
             layers `peft.utils.other.EMBEDDING_LAYER_NAMES` in config's `target_modules` when available. Based on it
             sets the boolean flag. This only works for 🤗 transformers models.
     """
+    print('TEST', 'get_peft_model_state_dict')
     if unwrap_compiled:
         model = getattr(model, "_orig_mod", model)
 
     config = model.peft_config[adapter_name]
+    print('TEST', config)
+    print('TEST 1', state_dict)
     if state_dict is None:
         state_dict = model.state_dict()
+    print('TEST 2', state_dict)
+
 
     # TUNER SPECIFIC CODE
     if config.peft_type in (PeftType.LORA, PeftType.ADALORA):
+        print('TEST', 'LORA')
         # to_return = lora_state_dict(model, bias=model.peft_config.bias)
         # adapted from `https://github.com/microsoft/LoRA/blob/main/loralib/utils.py`
         # to be used directly with the state dict which is necessary when using DeepSpeed or FSDP
@@ -119,6 +125,7 @@ def get_peft_model_state_dict(
             to_return = {renamed_dora_weights(k): v for k, v in to_return.items()}
 
     elif config.peft_type == PeftType.BOFT:
+        print('TEST', 'BOFT')
         bias = config.bias
         if bias == "none":
             to_return = {k: state_dict[k] for k in state_dict if "boft_" in k}
@@ -136,9 +143,11 @@ def get_peft_model_state_dict(
             raise NotImplementedError
 
     elif config.peft_type == PeftType.ADAPTION_PROMPT:
+        print('TEST', 'ADAPTION_PROMPT')
         to_return = {k: state_dict[k] for k in state_dict if k.split(".")[-1].startswith("adaption_")}
 
     elif config.is_prompt_learning:
+        print('TEST', 'PROMPT_LEARNING')
         to_return = {}
         if config.peft_type == PeftType.MULTITASK_PROMPT_TUNING:
             to_return["prefix_task_cols"] = model.prompt_encoder[adapter_name].prefix_task_cols
@@ -152,6 +161,7 @@ def get_peft_model_state_dict(
         to_return["prompt_embeddings"] = prompt_embeddings
 
     elif config.peft_type == PeftType.VERA:
+        print('TEST', 'VERA')
         vera_prefix = PEFT_TYPE_TO_PREFIX_MAPPING[config.peft_type]
         to_return = {k: state_dict[k] for k in state_dict if vera_prefix in k}
         if config.save_projection:
@@ -165,8 +175,10 @@ def get_peft_model_state_dict(
             to_return["base_model.vera_A." + adapter_name] = state_dict["base_model.vera_A." + adapter_name]
             to_return["base_model.vera_B." + adapter_name] = state_dict["base_model.vera_B." + adapter_name]
     elif config.peft_type == PeftType.XLORA:
+        print('TEST', 'XLORA')
         to_return = {k: state_dict[k] for k in state_dict if "internal_xlora_classifier" in k}
     elif config.peft_type == PeftType.VBLORA:
+        print('TEST', 'VBLORA')
         to_return = {}
         # choose the most efficient dtype for indices
         if config.num_vectors < 2**8:
@@ -195,6 +207,8 @@ def get_peft_model_state_dict(
     else:
         raise ValueError(f"Unknown PEFT type passed: {config.peft_type}")
 
+    print('TEST', 'modules')
+
     # ADDITIONAL TRAINING MODULES / MODULES_TO_SAVE
     for name, module in model.named_modules():
         if isinstance(module, AuxiliaryTrainingWrapper):
@@ -208,6 +222,8 @@ def get_peft_model_state_dict(
             to_return.update(
                 {f"{name}.{k}": v for k, v in module.adapter_state_dict(adapter_name, module_state_dict).items()}
             )
+
+    print('TEST', 'embeddings')
 
     # DEAL WITH EMBEDDINGS
     # check the common embedding layers in `target_modules` to reset `save_embedding_layers` if necessary
